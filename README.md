@@ -32,3 +32,5 @@
 ├── README.md
 └── test.parquet              # テスト用ファイル
 ```
+
+*公開ok*
