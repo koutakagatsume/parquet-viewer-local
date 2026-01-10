@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parquet Viewer</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #2563eb;
+        }
+        .drop-zone {
+            border: 3px dashed #2563eb;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+            cursor: pointer;
+            background: #fff;
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            background: #eff6ff;
+            border-color: #1d4ed8;
+        }
+        .drop-zone p {
+            font-size: 18px;
+            color: #666;
+        }
+        .drop-zone .icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        #fileInput {
+            display: none;
+        }
+        .info-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 12px 15px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .info-bar span {
+            color: #2563eb;
+            font-weight: 600;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .controls input, .controls select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: #fff;
+            color: #333;
+        }
+        .controls input:focus, .controls select:focus {
+            outline: none;
+            border-color: #2563eb;
+        }
+        .controls button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            background: #2563eb;
+            color: #fff;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        .controls button:hover {
+            background: #1d4ed8;
+        }
+        .controls button.secondary {
+            background: #64748b;
+        }
+        .controls button.secondary:hover {
+            background: #475569;
+        }
+        .table-container {
+            overflow-x: auto;
+            background: #fff;
+            border-radius: 8px;
+            max-height: 60vh;
+            overflow-y: auto;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        th, td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+            white-space: nowrap;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        th {
+            background: #f8fafc;
+            color: #1e40af;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            font-weight: 600;
+            border-bottom: 2px solid #e2e8f0;
+            cursor: pointer;
+            user-select: none;
+        }
+        th:hover {
+            background: #e2e8f0;
+        }
+        th .col-name {
+            font-weight: 600;
+        }
+        th .col-type {
+            font-weight: normal;
+            font-size: 11px;
+            color: #64748b;
+        }
+        th .sort-indicator {
+            margin-left: 4px;
+            color: #2563eb;
+        }
+        tr:hover {
+            background: #f8fafc;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .pagination button {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 6px;
+            background: #2563eb;
+            color: #fff;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .pagination button:disabled {
+            background: #cbd5e1;
+            color: #94a3b8;
+            cursor: not-allowed;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #2563eb;
+        }
+        .error {
+            text-align: center;
+            padding: 20px;
+            color: #dc2626;
+            background: #fef2f2;
+            border-radius: 8px;
+            margin-top: 20px;
+            border: 1px solid #fecaca;
+        }
+        .hidden {
+            display: none;
+        }
+        .null-value {
+            color: #94a3b8;
+            font-style: italic;
+        }
+        
+        /* SQL Section */
+        .sql-section {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .sql-section h3 {
+            color: #1e40af;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        .sql-section textarea {
+            width: 100%;
+            height: 80px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            resize: vertical;
+        }
+        .sql-section textarea:focus {
+            outline: none;
+            border-color: #2563eb;
+        }
+        .sql-controls {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .sql-hint {
+            font-size: 12px;
+            color: #64748b;
+        }
+        
+        /* Stats Section */
+        .stats-section {
+            margin-bottom: 15px;
+            padding: 15px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .stats-section h3 {
+            color: #1e40af;
+            margin-bottom: 10px;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .stats-table {
+            width: 100%;
+            font-size: 13px;
+            overflow-x: auto;
+            display: block;
+        }
+        .stats-table th, .stats-table td {
+            padding: 8px 10px;
+            text-align: left;
+            white-space: nowrap;
+        }
+        .stats-table th {
+            background: #f1f5f9;
+            cursor: default;
+        }
+        .stats-table th:hover {
+            background: #f1f5f9;
+        }
+        
+        /* Toggle button */
+        .toggle-btn {
+            font-size: 12px;
+            padding: 4px 10px;
+            background: #e2e8f0;
+            color: #475569;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .toggle-btn:hover {
+            background: #cbd5e1;
+        }
+    </style>
+</head>
+<body>
+    <h1>📊 Parquet Viewer</h1>
+    
+    <div class="drop-zone" id="dropZone">
+        <div class="icon">📁</div>
+        <p>Parquetファイルをドラッグ＆ドロップ<br>またはクリックして選択</p>
+        <input type="file" id="fileInput" accept=".parquet,.parq">
+    </div>
+    
+    <div id="content" class="hidden">
+        <div class="info-bar">
+            <div>
+                ファイル: <span id="fileName"></span> | 
+                行数: <span id="rowCount"></span> | 
+                カラム数: <span id="colCount"></span>
+            </div>
+            <div class="controls">
+                <input type="text" id="searchInput" placeholder="検索..." style="width:150px;">
+                <select id="pageSize">
+                    <option value="50">50件</option>
+                    <option value="100" selected>100件</option>
+                    <option value="500">500件</option>
+                    <option value="1000">1000件</option>
+                </select>
+                <button id="exportBtn">CSV出力</button>
+            </div>
+        </div>
+        
+        <!-- Stats Section -->
+        <div class="stats-section" id="statsSection">
+            <h3>
+                統計情報
+                <button class="toggle-btn" id="statsToggle">非表示</button>
+            </h3>
+            <div id="statsContent">
+                <table class="stats-table">
+                    <thead>
+                        <tr>
+                            <th>カラム</th>
+                            <th>型</th>
+                            <th>件数</th>
+                            <th>NULL数</th>
+                            <th>NULL率</th>
+                            <th>ユニーク数</th>
+                            <th>最小</th>
+                            <th>最大</th>
+                        </tr>
+                    </thead>
+                    <tbody id="statsBody"></tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- SQL Section -->
+        <div class="sql-section">
+            <h3>SQLクエリ</h3>
+            <textarea id="sqlInput" placeholder="SELECT * FROM data WHERE ..."></textarea>
+            <div class="sql-controls">
+                <button id="sqlRunBtn">実行</button>
+                <button id="sqlResetBtn" class="secondary">リセット</button>
+                <span class="sql-hint">テーブル名は <code>data</code> を使用</span>
+            </div>
+        </div>
+        
+        <div class="table-container">
+            <table id="dataTable">
+                <thead id="tableHead"></thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+        
+        <div class="pagination">
+            <button id="prevBtn">← 前へ</button>
+            <span id="pageInfo"></span>
+            <button id="nextBtn">次へ →</button>
+        </div>
+    </div>
+    
+    <div id="loading" class="loading hidden">
+        <div>読み込み中...</div>
+        <div style="font-size: 12px; margin-top: 10px; color: #64748b;">初回はDuckDB WASMの初期化に少し時間がかかります</div>
+    </div>
+    <div id="error" class="error hidden"></div>
+
+    <script type="module">
+        import * as duckdb from 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/+esm';
+        
+        let db = null;
+        let conn = null;
+        let allData = [];
+        let columns = [];
+        let currentPage = 0;
+        let pageSize = 100;
+        let filteredData = [];
+        let currentFileName = '';
+        let sortColumn = null;
+        let sortDirection = 'asc';
+        let fileRegistered = false;
+        let statsVisible = true;
+        
+        // Initialize DuckDB
+        async function initDuckDB() {
+            if (db) return;
+            
+            const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
+            const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
+            
+            const worker_url = URL.createObjectURL(
+                new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' })
+            );
+            
+            const worker = new Worker(worker_url);
+            const logger = new duckdb.ConsoleLogger();
+            db = new duckdb.AsyncDuckDB(logger, worker);
+            await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+            URL.revokeObjectURL(worker_url);
+            conn = await db.connect();
+        }
+        
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) loadFile(file);
+        });
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) loadFile(file);
+        });
+        
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            if (!query) {
+                filteredData = allData;
+            } else {
+                filteredData = allData.filter(row => 
+                    Object.values(row).some(val => 
+                        String(val).toLowerCase().includes(query)
+                    )
+                );
+            }
+            currentPage = 0;
+            renderTable();
+        });
+        
+        document.getElementById('pageSize').addEventListener('change', (e) => {
+            pageSize = parseInt(e.target.value);
+            currentPage = 0;
+            renderTable();
+        });
+        
+        document.getElementById('prevBtn').addEventListener('click', () => {
+            if (currentPage > 0) {
+                currentPage--;
+                renderTable();
+            }
+        });
+        
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            const totalPages = Math.ceil(filteredData.length / pageSize);
+            if (currentPage < totalPages - 1) {
+                currentPage++;
+                renderTable();
+            }
+        });
+        
+        document.getElementById('exportBtn').addEventListener('click', exportCSV);
+        
+        // SQL controls
+        document.getElementById('sqlRunBtn').addEventListener('click', runSQL);
+        document.getElementById('sqlResetBtn').addEventListener('click', resetData);
+        document.getElementById('sqlInput').addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'Enter') {
+                runSQL();
+            }
+        });
+        
+        // Stats toggle
+        document.getElementById('statsToggle').addEventListener('click', () => {
+            statsVisible = !statsVisible;
+            document.getElementById('statsContent').classList.toggle('hidden', !statsVisible);
+            document.getElementById('statsToggle').textContent = statsVisible ? '非表示' : '表示';
+        });
+        
+        async function loadFile(file) {
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('content').classList.add('hidden');
+            document.getElementById('error').classList.add('hidden');
+            currentFileName = file.name;
+            
+            try {
+                await initDuckDB();
+                
+                const buffer = await file.arrayBuffer();
+                const uint8Array = new Uint8Array(buffer);
+                
+                // Drop existing file if any
+                if (fileRegistered) {
+                    try { await db.dropFile('data.parquet'); } catch(e) {}
+                }
+                
+                // Register the file with DuckDB
+                await db.registerFileBuffer('data.parquet', uint8Array);
+                fileRegistered = true;
+                
+                // Create view for easier SQL
+                await conn.query("CREATE OR REPLACE VIEW data AS SELECT * FROM 'data.parquet'");
+                
+                // Get schema
+                const schemaResult = await conn.query("DESCRIBE SELECT * FROM data");
+                const schemaRows = schemaResult.toArray();
+                columns = schemaRows.map(row => ({
+                    name: row.column_name,
+                    type: row.column_type
+                }));
+                
+                // Get row count
+                const countResult = await conn.query("SELECT COUNT(*) as cnt FROM data");
+                const countRows = countResult.toArray();
+                const totalRows = Number(countRows[0].cnt);
+                
+                // Get all data
+                const dataResult = await conn.query("SELECT * FROM data");
+                const dataRows = dataResult.toArray();
+                allData = dataRows.map(row => {
+                    const obj = {};
+                    for (const col of columns) {
+                        obj[col.name] = row[col.name];
+                    }
+                    return obj;
+                });
+                
+                filteredData = allData;
+                currentPage = 0;
+                sortColumn = null;
+                sortDirection = 'asc';
+                
+                // Update UI
+                document.getElementById('fileName').textContent = file.name;
+                document.getElementById('rowCount').textContent = totalRows.toLocaleString();
+                document.getElementById('colCount').textContent = columns.length;
+                document.getElementById('sqlInput').value = 'SELECT * FROM data';
+                
+                // Calculate and render stats
+                await calculateStats();
+                
+                renderTable();
+                
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('content').classList.remove('hidden');
+                
+            } catch (err) {
+                console.error(err);
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('error').textContent = `エラー: ${err.message}`;
+                document.getElementById('error').classList.remove('hidden');
+            }
+        }
+        
+        async function calculateStats() {
+            const statsBody = document.getElementById('statsBody');
+            const stats = [];
+            
+            for (const col of columns) {
+                const colName = `"${col.name}"`;
+                try {
+                    const result = await conn.query(`
+                        SELECT 
+                            COUNT(*) as total,
+                            COUNT(${colName}) as non_null,
+                            COUNT(*) - COUNT(${colName}) as null_count,
+                            COUNT(DISTINCT ${colName}) as unique_count,
+                            MIN(${colName}::VARCHAR) as min_val,
+                            MAX(${colName}::VARCHAR) as max_val
+                        FROM data
+                    `);
+                    const row = result.toArray()[0];
+                    const nullRate = ((Number(row.null_count) / Number(row.total)) * 100).toFixed(1);
+                    stats.push({
+                        name: col.name,
+                        type: col.type,
+                        total: Number(row.total),
+                        nullCount: Number(row.null_count),
+                        nullRate: nullRate,
+                        uniqueCount: Number(row.unique_count),
+                        min: row.min_val,
+                        max: row.max_val
+                    });
+                } catch(e) {
+                    stats.push({
+                        name: col.name,
+                        type: col.type,
+                        total: allData.length,
+                        nullCount: '-',
+                        nullRate: '-',
+                        uniqueCount: '-',
+                        min: '-',
+                        max: '-'
+                    });
+                }
+            }
+            
+            statsBody.innerHTML = stats.map(s => `
+                <tr>
+                    <td>${escapeHtml(s.name)}</td>
+                    <td>${escapeHtml(s.type)}</td>
+                    <td>${s.total.toLocaleString()}</td>
+                    <td>${typeof s.nullCount === 'number' ? s.nullCount.toLocaleString() : s.nullCount}</td>
+                    <td>${s.nullRate}%</td>
+                    <td>${typeof s.uniqueCount === 'number' ? s.uniqueCount.toLocaleString() : s.uniqueCount}</td>
+                    <td title="${escapeHtml(String(s.min))}">${escapeHtml(truncate(String(s.min), 20))}</td>
+                    <td title="${escapeHtml(String(s.max))}">${escapeHtml(truncate(String(s.max), 20))}</td>
+                </tr>
+            `).join('');
+        }
+        
+        function truncate(str, len) {
+            if (!str) return '';
+            return str.length > len ? str.substring(0, len) + '...' : str;
+        }
+        
+        async function runSQL() {
+            const sql = document.getElementById('sqlInput').value.trim();
+            if (!sql) return;
+            
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('error').classList.add('hidden');
+            
+            try {
+                const result = await conn.query(sql);
+                const rows = result.toArray();
+                
+                if (rows.length === 0) {
+                    filteredData = [];
+                    columns = [];
+                } else {
+                    // Update columns from result
+                    const firstRow = rows[0];
+                    const newColumns = Object.keys(firstRow).map(key => ({
+                        name: key,
+                        type: typeof firstRow[key]
+                    }));
+                    
+                    // Get proper types from describe
+                    try {
+                        const descResult = await conn.query(`DESCRIBE ${sql}`);
+                        const descRows = descResult.toArray();
+                        columns = descRows.map(r => ({
+                            name: r.column_name,
+                            type: r.column_type
+                        }));
+                    } catch(e) {
+                        columns = newColumns;
+                    }
+                    
+                    filteredData = rows.map(row => {
+                        const obj = {};
+                        for (const col of columns) {
+                            obj[col.name] = row[col.name];
+                        }
+                        return obj;
+                    });
+                }
+                
+                currentPage = 0;
+                sortColumn = null;
+                document.getElementById('rowCount').textContent = filteredData.length.toLocaleString();
+                document.getElementById('colCount').textContent = columns.length;
+                renderTable();
+                
+                document.getElementById('loading').classList.add('hidden');
+            } catch (err) {
+                console.error(err);
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('error').textContent = `SQLエラー: ${err.message}`;
+                document.getElementById('error').classList.remove('hidden');
+            }
+        }
+        
+        function resetData() {
+            filteredData = allData;
+            document.getElementById('sqlInput').value = 'SELECT * FROM data';
+            document.getElementById('searchInput').value = '';
+            currentPage = 0;
+            sortColumn = null;
+            
+            // Restore original columns
+            loadOriginalColumns();
+            renderTable();
+        }
+        
+        async function loadOriginalColumns() {
+            try {
+                const schemaResult = await conn.query("DESCRIBE SELECT * FROM data");
+                const schemaRows = schemaResult.toArray();
+                columns = schemaRows.map(row => ({
+                    name: row.column_name,
+                    type: row.column_type
+                }));
+                document.getElementById('rowCount').textContent = allData.length.toLocaleString();
+                document.getElementById('colCount').textContent = columns.length;
+            } catch(e) {}
+        }
+        
+        function sortData(colName) {
+            if (sortColumn === colName) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = colName;
+                sortDirection = 'asc';
+            }
+            
+            filteredData.sort((a, b) => {
+                let valA = a[colName];
+                let valB = b[colName];
+                
+                // Handle nulls
+                if (valA === null || valA === undefined) return sortDirection === 'asc' ? 1 : -1;
+                if (valB === null || valB === undefined) return sortDirection === 'asc' ? -1 : 1;
+                
+                // Compare
+                if (typeof valA === 'number' && typeof valB === 'number') {
+                    return sortDirection === 'asc' ? valA - valB : valB - valA;
+                }
+                
+                const strA = String(valA).toLowerCase();
+                const strB = String(valB).toLowerCase();
+                if (sortDirection === 'asc') {
+                    return strA.localeCompare(strB);
+                } else {
+                    return strB.localeCompare(strA);
+                }
+            });
+            
+            currentPage = 0;
+            renderTable();
+        }
+        
+        function renderTable() {
+            const start = currentPage * pageSize;
+            const end = Math.min(start + pageSize, filteredData.length);
+            const pageData = filteredData.slice(start, end);
+            
+            // Header
+            const thead = document.getElementById('tableHead');
+            thead.innerHTML = `<tr><th>#</th>${columns.map(c => {
+                const sortIndicator = sortColumn === c.name 
+                    ? `<span class="sort-indicator">${sortDirection === 'asc' ? '▲' : '▼'}</span>` 
+                    : '';
+                return `<th data-col="${escapeHtml(c.name)}">
+                    <div class="col-name">${escapeHtml(c.name)}${sortIndicator}</div>
+                    <div class="col-type">(${escapeHtml(c.type)})</div>
+                </th>`;
+            }).join('')}</tr>`;
+            
+            // Add sort handlers
+            thead.querySelectorAll('th[data-col]').forEach(th => {
+                th.addEventListener('click', () => {
+                    sortData(th.dataset.col);
+                });
+            });
+            
+            // Body
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = pageData.map((row, idx) => 
+                `<tr><td>${start + idx + 1}</td>${columns.map(c => {
+                    let val = row[c.name];
+                    if (val === null || val === undefined) {
+                        return `<td class="null-value">null</td>`;
+                    }
+                    if (typeof val === 'object') val = JSON.stringify(val);
+                    const strVal = String(val);
+                    const escaped = escapeHtml(strVal);
+                    return `<td title="${escaped}">${escaped}</td>`;
+                }).join('')}</tr>`
+            ).join('');
+            
+            // Pagination
+            const totalPages = Math.ceil(filteredData.length / pageSize) || 1;
+            document.getElementById('pageInfo').textContent = `${currentPage + 1} / ${totalPages} ページ (${filteredData.length.toLocaleString()}件)`;
+            document.getElementById('prevBtn').disabled = currentPage === 0;
+            document.getElementById('nextBtn').disabled = currentPage >= totalPages - 1;
+        }
+        
+        function escapeHtml(text) {
+            if (text === null || text === undefined) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function exportCSV() {
+            const headers = columns.map(c => c.name);
+            const csvContent = [
+                headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','),
+                ...filteredData.map(row => 
+                    headers.map(h => {
+                        let val = row[h];
+                        if (val === null || val === undefined) return '';
+                        if (typeof val === 'object') val = JSON.stringify(val);
+                        val = String(val).replace(/"/g, '""');
+                        return `"${val}"`;
+                    }).join(',')
+                )
+            ].join('\n');
+            
+            const bom = '\uFEFF';
+            const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = currentFileName.replace(/\.parquet?$/i, '') + '.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
