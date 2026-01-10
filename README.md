@@ -23,6 +23,8 @@
 - CSV出力
 
 ## 画面イメージ
+　オープンデータの款別性年齢別算定回数.xlsxをparquetへ加工したもの
+ 　（[公開リンク](https://www.mhlw.go.jp/stf/seisakunitsuite/bunya/0000177221_00008.html)）
 <img width="1112" height="1864" alt="image" src="https://github.com/user-attachments/assets/dd54660a-7991-49be-bb96-68292d215157" />
 
 
