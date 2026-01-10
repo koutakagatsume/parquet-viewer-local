@@ -22,6 +22,10 @@
 - 統計情報表示
 - CSV出力
 
+## 画面イメージ
+<img width="933" height="262" alt="image" src="https://github.com/user-attachments/assets/f94b284c-6cc6-4ffa-b91d-c0a821eeae37" />
+
+
 ## ディレクトリ構成
 
 ```
