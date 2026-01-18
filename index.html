@@ -274,6 +274,7 @@
                 <table class="stats-table">
                     <thead>
                         <tr>
+                            <th>通番</th>
                             <th>カラム</th>
                             <th>型</th>
                             <th>件数</th>
@@ -472,8 +473,9 @@
                 });
             }
             
-            statsBody.innerHTML = stats.map(s => `
+            statsBody.innerHTML = stats.map((s, idx) => `
                 <tr>
+                    <td>${idx + 1}</td>
                     <td>${escapeHtml(s.name)}</td>
                     <td>${escapeHtml(s.type)}</td>
                     <td>${s.total.toLocaleString()}</td>
